@@ -4,5 +4,7 @@ use App\Http\Controllers\Api\InvoiceController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->name('api.v1.')->group(function () {
-    Route::post('invoices/generate-pdf', [InvoiceController::class, 'generate'])->name('invoices.generate-pdf');
+    Route::post('invoices/generate-pdf', [InvoiceController::class, 'generate'])
+        ->middleware('throttle:invoice-pdf')
+        ->name('invoices.generate-pdf');
 });

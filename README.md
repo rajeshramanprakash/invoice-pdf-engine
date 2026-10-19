@@ -15,6 +15,8 @@ A modular Laravel 13 service that turns a JSON billing payload into a profession
 - **Exact money math.** Totals are computed in integer cents, so `0.1 + 0.2` is `0.30` and the printed line totals always add up to the printed subtotal. Tax is rounded half-up to the cent.
 - **UTF-8 output.** Uses the bundled *DejaVu Sans* font (Latin, Greek, Cyrillic, and symbols such as `₹ € £`), with font subsetting to keep files small (~30 KB).
 - **DomPDF-optimised template.** Table-based layout (DomPDF doesn't support flexbox or grid), embedded CSS, repeating table headers on page breaks, rows that never split across pages, and a fixed footer.
+- **Abuse protection.** Per-IP rate limiting, plus caps on line-item count and description length, keep a public endpoint from tying up the server.
+- **Deploy-ready.** A Dockerfile and Render blueprint deploy it to Render's free tier.
 - **Configurable branding.** Company details, currency, payment terms, and footer note all come from `.env`.
 - **Tested.** Unit tests cover the billing math. Feature tests cover the HTTP contract, validation, Unicode rendering, and filename sanitisation.
 
@@ -156,8 +158,8 @@ php artisan test
 | `client_name` | string | required, max 255 |
 | `client_email` | string | required, valid email |
 | `client_address` | string | required; `\n` produces line breaks |
-| `items` | array | required, at least 1 item |
-| `items.*.description` | string | required |
+| `items` | array | required, 1–100 items |
+| `items.*.description` | string | required, max 500 |
 | `items.*.quantity` | integer | required, min 1 |
 | `items.*.unit_price` | numeric | required, min 0 |
 | `tax_percent` | numeric | optional, 0–100 |
@@ -168,6 +170,7 @@ php artisan test
 | --- | --- |
 | `200 OK` | `application/pdf` with `Content-Disposition: attachment; filename=invoice-{invoice_number}.pdf` |
 | `422 Unprocessable Content` | JSON validation errors |
+| `429 Too Many Requests` | Rate limit exceeded (default 10 requests per minute per IP, set with `INVOICE_RATE_LIMIT_PER_MINUTE`) |
 
 In the filename, characters other than letters, digits, `.`, `_`, and `-` are replaced with `-`. For example, `INV/2026/0042` downloads as `invoice-INV-2026-0042.pdf`. The invoice itself still shows the original number.
 
@@ -248,12 +251,36 @@ Add an `Accept: application/json` header, then use **Send and Download** to save
 
 ---
 
+## Deploying to Render (free)
+
+The repo includes a `Dockerfile`, `docker/entrypoint.sh` and a `render.yaml` blueprint. The API stores nothing, so no database is needed.
+
+1. Generate an application key locally and copy the output:
+
+   ```bash
+   php artisan key:generate --show
+   ```
+
+2. Sign in at [render.com](https://render.com) with GitHub, then click **New → Blueprint** and select this repository.
+3. When Render asks for `APP_KEY`, paste the key from step 1, then click **Apply**.
+4. Wait for the first build (a few minutes). Your API is then live at `https://<service-name>.onrender.com/api/v1/invoices/generate-pdf`.
+
+Check that it's running by opening `https://<service-name>.onrender.com/up`, which should return a 200 status page.
+
+Free-tier notes:
+
+- The service sleeps after 15 minutes without traffic. The first request after that takes about a minute while it wakes up.
+- Every push to `main` triggers a new deploy (`autoDeploy: true`).
+- The production settings are in `render.yaml`: debug output is off, logs go to stderr, and the rate limiter uses file cache.
+
+---
+
 ## Extending the engine
 
 - **More document types** (billing statements, receipts): add a FormRequest, a Blade view under `resources/views/pdf/`, and a service method. Reuse `calculateTotals()` where the math is the same.
 - **Store or email the PDF:** call `$pdf->output()` in the service to get the raw bytes, then write them with `Storage::put()` or attach them to a Mailable.
 - **Large batches:** wrap generation in a queued job so heavy rendering doesn't block HTTP workers.
-- **Authentication:** the endpoint is public by default. Put the route behind `auth:sanctum` (or your API gateway) before exposing it.
+- **Authentication:** the endpoint is public and protected only by rate limiting. For anything beyond a demo, put the route behind `auth:sanctum` or your API gateway.
 - **CJK text:** DejaVu Sans has no Chinese, Japanese, or Korean glyphs. To support those scripts, register a font such as *Noto Sans CJK* with DomPDF's font loader and reference it in the template.
 
 ## License

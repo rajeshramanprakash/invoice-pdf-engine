@@ -35,4 +35,15 @@ return [
 
     'footer_note' => env('INVOICE_FOOTER_NOTE', 'Thank you for your business. Please include the invoice number with your payment.'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Rate Limiting
+    |--------------------------------------------------------------------------
+    |
+    | Maximum PDF generation requests per minute from a single IP address.
+    |
+    */
+
+    'rate_limit_per_minute' => (int) env('INVOICE_RATE_LIMIT_PER_MINUTE', 10),
+
 ];

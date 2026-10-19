@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: invoice-pdf-engine
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /up
+    autoDeploy: true
+    envVars:
+      - key: APP_KEY
+        sync: false # paste the output of `php artisan key:generate --show`
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: warning
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: SESSION_DRIVER
+        value: array
+      - key: CACHE_STORE
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: INVOICE_RATE_LIMIT_PER_MINUTE
+        value: "10"

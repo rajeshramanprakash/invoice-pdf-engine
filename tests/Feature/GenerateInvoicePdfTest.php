@@ -103,4 +103,22 @@ class GenerateInvoicePdfTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['items']);
     }
+
+    public function test_it_limits_the_size_of_a_request(): void
+    {
+        $item = ['description' => str_repeat('a', 501), 'quantity' => 1, 'unit_price' => 1];
+
+        $this->postJson(self::ENDPOINT, $this->validPayload(['items' => array_fill(0, 101, $item)]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items', 'items.0.description']);
+    }
+
+    public function test_it_rate_limits_requests_per_ip(): void
+    {
+        config(['invoice.rate_limit_per_minute' => 2]);
+
+        $this->postJson(self::ENDPOINT, $this->validPayload())->assertOk();
+        $this->postJson(self::ENDPOINT, $this->validPayload())->assertOk();
+        $this->postJson(self::ENDPOINT, $this->validPayload())->assertTooManyRequests();
+    }
 }
